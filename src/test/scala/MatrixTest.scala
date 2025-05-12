@@ -8,6 +8,14 @@ class MatrixTest extends AnyFlatSpec {
     val mat: Matrix[Int] = Matrix(List(List(1, 2), List(3, 4)))
   }
 
+  trait ThreeByThreeMatrix {
+    val mat: Matrix[Int] = Matrix(List(List(1, 2, 3), List(4, 5, 6), List(7, 8, 9)))
+  }
+
+  trait FourByFourMatrix {
+    val mat: Matrix[Int] = Matrix(List(List(1, 2, 3, 4), List(5, 6, 7, 8), List(9, 10, 11, 12), List(13, 14, 15, 16)))
+  }
+
   "The matrix" must "have two rows" in new TwoByTwoMatrix {
     assert(mat.nRows == 2)
   }
@@ -106,6 +114,14 @@ class MatrixTest extends AnyFlatSpec {
     assert((mat1 - mat2).isEmpty)
   }
 
+  "Multiplying this matrix by 3" must "be (3, 6, 9, 12)" in new TwoByTwoMatrix {
+    assert(mat * 3 == Matrix(List(List(3, 6), List(9, 12))))
+  }
+
+  "Scalar multiplication" must "be commutative" in new TwoByTwoMatrix {
+    assert(3 * mat == Matrix(List(List(3, 6), List(9, 12))))
+  }
+
   "These matrices" must "be equal" in new TwoByTwoMatrix {
     val newMat: Matrix[Int] = Matrix(List(List(1, 2), List(3, 4)))
     assert(mat == newMat)
@@ -121,4 +137,27 @@ class MatrixTest extends AnyFlatSpec {
     assert((mat1 * mat2).isEmpty)
   }
 
+  "The determinant" must "be -2" in new TwoByTwoMatrix {
+    assert(mat.determinant.get == -2)
+  }
+
+  "The determinant" must "be 0" in new ThreeByThreeMatrix {
+    assert(mat.determinant.get == 0)
+  }
+
+  "This determinant" must "also be 0" in new FourByFourMatrix {
+    assert(mat.determinant.get == 0)
+  }
+
+  "This matrix" must "be invertible" in new TwoByTwoMatrix {
+    assert(mat.isInvertible)
+  }
+
+  "This matrix" must "not be invertible" in new ThreeByThreeMatrix {
+    assert(!mat.isInvertible)
+  }
+
+  "The inverse of this matrix" must "be (-2, 1, 3/2, -1/2)" in new TwoByTwoMatrix {
+    assert(mat.invert().get == Matrix(List(List(-2.0, 1.0), List(3/2.0, -1/2.0))))
+  }
 }

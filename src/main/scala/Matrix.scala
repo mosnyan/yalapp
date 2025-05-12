@@ -2,7 +2,10 @@ package ca.mosnyan
 
 import scala.annotation.tailrec
 import scala.math.Numeric.Implicits.infixNumericOps
+import scala.math.Fractional.Implicits.infixFractionalOps
 import java.util.NoSuchElementException
+import scala.math
+import scala.math.{Pi, pow}
 
 /**
  * Yet Another Linear Algebra Practice Package: Scala Edition
@@ -82,6 +85,117 @@ class Matrix[T : Numeric] private (private val data: List[List[T]]) {
   }
 
   /**
+   * Transposes the matrix.
+   * @return The transposed matrix. Cannot fail.
+   */
+  def transpose(): Matrix[T] = {
+    Matrix(nCols, nRows, (row, col) => this(col, row).get)
+  }
+
+  /**
+   * Indicates whether the matrix is square or not.
+   * @return True if square, false otherwise.
+   */
+  def isSquare: Boolean = {
+    nRows == nCols
+  }
+
+  /**
+   * Calculates the trace of the matrix. The trace is the sum of the elements in its diagonal.
+   * @return Some(T) for the trace, None if the matrix is not square.
+   */
+  def trace: Option[T] = {
+    @tailrec
+    def sumDiagonal(idx: Int, acc: T): T = {
+      if (idx == nRows) acc
+      else sumDiagonal(idx + 1, acc + this(idx, idx).get)
+    }
+    if (!isSquare) None
+    else Some(sumDiagonal(1, this(0, 0).get))
+  }
+
+  /**
+   * Calculates the determinant of the matrix.
+   * @return Some(T) for the determinant, None if it can't be computed (matrix isn't square).
+   */
+  def determinant: Option[T] = {
+   if (!isSquare) None
+   else if (nRows == 1) this(0, 0)
+   else if (nRows == 2) Some(this(0, 0).get * this(1, 1).get - this(0, 1).get * this(1, 0).get)
+   else Some(cols.zipWithIndex.map((col, idx) => getSign(0, idx) * col.head * this.submatrix(0, idx).determinant.get).sum)
+  }
+
+  /**
+   * Gets the minor of the specified element. The minor is the determinant of the submatrix composed of the base
+   * matrix, minus the row and column where the element sits.
+   * @param row The row of the element.
+   * @param col The column of the element.
+   * @return Some(T) if the minor can be calculated, None otherwise (matrix isn't square).
+   */
+  def minor(row: Int, col: Int): Option[T] = {
+    if (!isSquare) None
+    else if (row < 0 || row >= nRows) None
+    else if (col < 0 || col >= nCols) None
+    else Some(submatrix(row, col).determinant.get)
+  }
+
+  /**
+   * Gets the cofactor of the specified element. The cofactor is the signed minor.
+   * @param row The row of the element.
+   * @param col The column of the element.
+   * @return Some(T) if the cofactor can be calculated, None otherwise (matrix isn't square).
+   */
+  def cofactor(row: Int, col: Int): Option[T] = {
+    if (!isSquare) None
+    else if (row < 0 || row >= nRows) None
+    else if (col < 0 || col >= nCols) None
+    else Some(getSign(row, col) * submatrix(row, col).determinant.get)
+  }
+
+  /**
+   * Returns the cofactor matrix of the matrix. The cofactor matrix is a matrix where each element is replaced
+   * by its cofactor.
+   * @return Some(Matrix[T]) if the cofactor matrix exists, None otherwise (matrix isn't square).
+   */
+  def cofactorMatrix(): Option[Matrix[T]] = {
+    if (!isSquare) None
+    else Some(Matrix(nRows, nCols, (row, col) => cofactor(row, col).get))
+  }
+
+  /**
+   * Returns the adjugate matrix. The adjugate matrix is the transposed cofactor matrix.
+   * @return Some(Matrix[T]) if the adjugate matrix exists, None otherwise.
+   */
+  def adjugateMatrix(): Option[Matrix[T]] = {
+    cofactorMatrix() match {
+      case Some(m) => Some(m.transpose())
+      case None => None
+    }
+  }
+
+  /**
+   * Checks if a matrix is invertible.
+   * @return True if it is, false otherwise.
+   */
+  def isInvertible: Boolean = {
+    determinant match {
+      case Some(d) => if (d != 0) true else false
+      case None => false
+    }
+  }
+
+  /**
+   * Inverts the matrix. This returns a matrix of Doubles no matter the type of the base matrix, because the
+   * inverse may be fractional.
+   * @return The inverted matrix.
+   */
+  def invert(): Option[Matrix[Double]] = {
+    if (!isInvertible) None
+    else Some(Matrix(nRows, nCols, (row, col) =>
+      (1/determinant.get.toDouble) * adjugateMatrix().get(row, col).get.toDouble))
+  }
+
+  /**
    * Operator overload to add two matrices.
    * @param other The other matrix.
    * @return Some(Matrix[T]) if successful, None if the matrices aren't of the same dimensions.
@@ -116,12 +230,46 @@ class Matrix[T : Numeric] private (private val data: List[List[T]]) {
   }
 
   /**
+   * Operator overload to multiply a matrix by a scalar.
+   * @param k The scalar.
+   * @return A matrix with its elements multiplied by the scalar. Cannot fail.
+   */
+  def *(k: T): Matrix[T] = {
+    Matrix(nRows, nCols, (row, col) => this(row, col).get * k)
+  }
+
+  /**
    * Operator shadowing to test for matrix equality.
    * @param other The other matrix.
    * @return True if the data value is equal, false if not.
    */
   def ==(other: Matrix[T]): Boolean = {
     this.data == other.data
+  }
+
+  /**
+   * Strips a matrix of a specified row and a specified column.
+   * @param row The row to strip.
+   * @param col The column to strip.
+   * @return A matrix amputated of the defined row and column.
+   */
+  private def submatrix(row: Int, col: Int): Matrix[T] = {
+    val newData = this.data.zipWithIndex
+      .filter((_, idx) => idx != row) // removes row
+      .map((row, _) => row.zipWithIndex.filter((_, idx) => idx != col) // removes column
+        .map((ele, idx) => ele)) // removes indices
+    Matrix(newData)
+  }
+
+  /**
+   * Gets the sign associated with the element to calculate the cofactor.
+   * @param row The row of the element.
+   * @param col The column of the element.
+   * @return The associated sign (+1 if row + col is even, -1 otherwise).
+   */
+  private def getSign(row: Int, col: Int): T = {
+    if ((row + col) % 2 == 0) implicitly[Numeric[T]].one
+    else -implicitly[Numeric[T]].one
   }
 
   /**
@@ -184,4 +332,19 @@ object Matrix {
   }
 }
 
+/**
+ * Value class enabling scalar multiplication to be commutative.
+ * @param k The scalar.
+ * @tparam Numeric Any type that supports multiplication.
+ */
+implicit class CommutativeScalarMultiplication[Numeric](val k: Numeric) extends AnyVal {
+  def *(mat: Matrix[Numeric]): Matrix[Numeric] = {
+    mat * k
+  }
+}
+
+/**
+ * Exception class denoting a malformed matrix during object construction.
+ * @param message The exception message.
+ */
 case class MatrixFormatException(message: String = "") extends Exception(message)
